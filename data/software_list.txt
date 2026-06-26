@@ -1,0 +1,7 @@
+# software_list.txt — one entry per line: product,version
+# Lines starting with # are ignored.
+Apache HTTP Server,2.4.49
+OpenSSL,1.1.1k
+Log4j,2.14.1
+nginx,1.18.0
+WordPress,5.8
