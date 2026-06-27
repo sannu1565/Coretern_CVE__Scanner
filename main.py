@@ -12,7 +12,6 @@ HEADERS = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
 RATE_LIMIT_SLEEP = 1.5   # seconds between requests (public limit: 5 req/30 s)
 RESULTS_PER_PAGE = 10
 
-
 # ── NVD API ────────────────────────────────────────────────────────────────────
 def search_cves(product: str, version: str, retries: int = 3) -> dict:
     """Query the NVD API for CVEs matching product + version.
