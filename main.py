@@ -14,25 +14,36 @@ RESULTS_PER_PAGE = 10
 
 
 # ── NVD API ────────────────────────────────────────────────────────────────────
-def search_cves(product: str, version: str) -> dict:
-    """Query the NVD API for CVEs matching product + version."""
+def search_cves(product: str, version: str, retries: int = 3) -> dict:
+    """Query the NVD API for CVEs matching product + version.
+    Retries up to `retries` times on 503 Service Unavailable."""
     query = f"{product} {version}"
     params = {
         "keywordSearch": query,
         "resultsPerPage": RESULTS_PER_PAGE,
     }
-    try:
-        response = requests.get(
-            NVD_API_URL, params=params, headers=HEADERS, timeout=10
-        )
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"[!] API Error: {response.status_code} – {response.text}")
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.get(
+                NVD_API_URL, params=params, headers=HEADERS, timeout=10
+            )
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 503:
+                wait = attempt * 5
+                print(f"[!] NVD unavailable (503) — retrying in {wait}s… (attempt {attempt}/{retries})")
+                time.sleep(wait)
+            elif response.status_code == 403:
+                print(f"[!] 403 Forbidden — set NVD_API_KEY environment variable for access.")
+                return {}
+            else:
+                print(f"[!] API Error: {response.status_code} – {response.text[:120]}")
+                return {}
+        except requests.RequestException as e:
+            print(f"[!] Request error: {e}")
             return {}
-    except requests.RequestException as e:
-        print(f"[!] Request error: {e}")
-        return {}
+    print(f"[!] Failed after {retries} attempts. NVD may be down — try again later.")
+    return {}
 
 
 def parse_cve_results(data: dict) -> list[tuple]:
@@ -45,9 +56,12 @@ def parse_cve_results(data: dict) -> list[tuple]:
         severity = "N/A"
         metrics = cve.get("metrics", {})
         if "cvssMetricV31" in metrics:
-            severity = metrics["cvssMetricV31"][0]["cvssData"]["baseSeverity"]
+            severity = metrics["cvssMetricV31"][0]["cvssData"].get("baseSeverity", "N/A")
+        elif "cvssMetricV30" in metrics:
+            severity = metrics["cvssMetricV30"][0]["cvssData"].get("baseSeverity", "N/A")
         elif "cvssMetricV2" in metrics:
-            severity = metrics["cvssMetricV2"][0]["cvssData"]["baseSeverity"]
+            m = metrics["cvssMetricV2"][0]
+            severity = m.get("baseSeverity") or m["cvssData"].get("baseSeverity", "N/A")
         results.append((cve_id, severity, desc))
     return results
 
